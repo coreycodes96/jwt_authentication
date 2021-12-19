@@ -1,64 +1,47 @@
-let accessToken = '';
-let refreshToken = '';
+let accessToken = "";
+let refreshToken = "";
 
-const decodeJwt = token => {
-    let base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
+axios.defaults.baseURL = "http://localhost:4000";
+axios.defaults.headers["Content-Type"] = "application/json";
 
-    return JSON.parse(jsonPayload);
-};
+axios.interceptors.response.use(
+  (res) => {
+    console.log("REQUEST: ", res);
 
-//login
-document.querySelector('#loginBtn').addEventListener('click', () => {
-    axios.post('http://192.168.1.114:5000/login',{
-        username: "Username 1"
-    },{
-        headers:{
-            "Content-Type": "application/json",
-        }
-    })
-    .then(res => {
-        console.log(res);
-        accessToken = res.data.accessToken;
-        refreshToken = res.data.refreshToken;
-    })
-    .catch(error => {
-        console.log(error.response);
-    })
-});
-
-//posts
-document.querySelector('#getPostsBtn').addEventListener('click', () => {
-    if(new Date().getTime() > decodeJwt(accessToken).exp * 1000){
-        axios.post('http://192.168.1.114:5000/refresh', {
-            refreshToken
-        }, {
-            headers:{
-                'Authorization': "Bearer "+ accessToken,
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(res => {
-            accessToken = res.data.newAccessToken;
-        })
-        .catch(error => {
-            console.log(error.response);
-        });
+    if (res.headers["x-access"]) {
+      axios.defaults.headers["authorization"] = `Bearer ${res.headers["x-access"]}`;
     }
+    if (res.config.url === "/login" && res.status === 200) {
+      axios.defaults.headers["authorization"] = `Bearer ${res.data.accessToken}`;
+      axios.defaults.headers["x-refresh"] = `Bearer ${res.data.refreshToken}`;
+    }
+    return res;
+  },
+  (err) => {
+    console.error("err: ", err);
+    return Promise.reject(err);
+  }
+);
 
-    axios.get('http://192.168.1.114:5000/posts', {
-        headers:{
-            'Authorization': "Bearer "+ accessToken,
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(res => {
-        console.log(res.data);
-    })
-    .catch(error => {
-        console.log(error.response);
-    })
-});
+(function () {
+  //login
+  document.querySelector("#loginBtn").addEventListener("click", () => {
+    axios
+      .post("/login", {
+        username: "Username 1",
+      })
+      .catch((error) => {
+        console.error(error.response);
+      });
+  });
+
+  const getPosts = async () => {
+    const res = await axios.get("/posts");
+
+    return res.data;
+  };
+
+  document.querySelector("#getPostsBtn").addEventListener("click", () => {
+    getPosts().then((res) => console.log(res));
+  });
+})();
